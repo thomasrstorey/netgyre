@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>netgyre</title>
+    <meta charset="utf-8">
+    <style>* {margin:0;padding:0;}</style>
+  </head>
+  <body>
+  <script src="/js/three.min.js"></script>
+  <script src="/js/Detector.js"></script>
+  <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+  <script src="/js/FlyControls.js"></script>
+  <script src="/js/Viewer.js"></script>
+
+  <script id="worker1" type="javascript/worker">
+  	var world;
+    var preBodies = new Array();
+  	self.onmessage = function(e){
+
+      switch(e.data.cmd){
+
+          case 'run':
+
+      		if(e.data.cannonUrl && !world){
+      			//import cannonjs
+      			importScripts(e.data.cannonUrl);
+      			//world
+      			world = new CANNON.World();
+      			world.broadphase = new CANNON.NaiveBroadphase();
+      			world.gravity.set(0, 0, 0);
+      			world.solver.tolerance = 0.1;
+            world.solver.iterations = 1;
+            world.quatNormalizeFast = true;
+
+
+      			//bodies
+      			var shape = new CANNON.Box(new CANNON.Vec3(0.25, 0.5, 0.25));
+      			for(var i=0; i!==e.data.N; i++){
+      				var body = new CANNON.RigidBody(5, shape);
+      				body.position.set((Math.random()-0.5)*20, (Math.random()-0.5)*20, (Math.random()-0.5)*20);
+              body.quaternion.set((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5), 1);
+
+              preBodies[i] = body;
+      			}
+            var N = e.data.N - 1;
+            for(var i=0; i!==N; i++){
+              var body = preBodies[i];
+              body.preStep = function(){
+
+                for(var j = 0; j!==N; j++){
+                  if(j !== i){
+                    var otherBody = preBodies[j];
+                    var bodyToBody = new CANNON.Vec3();
+                    bodyToBody = this.position;
+                    var direction = new CANNON.Vec3();
+                    otherBody.position.vsub(bodyToBody, direction);
+                    var bodyDistance = direction.norm();
+                    direction.normalize;
+                    direction.mult(-1/(5*bodyDistance), direction);
+                    this.force = this.force.vadd(direction);
+                  }
+                }
+                var bodyToCenter = new CANNON.Vec3();
+                this.position.negate(bodyToCenter);
+                bodyToCenter = bodyToCenter.mult(3);
+                this.force = this.force.vadd(bodyToCenter);
+              }
+              world.add(body);
+            }
+
+      		}
+          if(!e.data.paused) world.step(e.data.dt);
+
+      		//copy simulation data to data buffers
+
+      		var positions = e.data.positions;
+      		var quaternions = e.data.quaternions;
+      		for(var i=0; i!==world.bodies.length; i++){
+      			var b = world.bodies[i],
+      			    p = b.position,
+      			    q = b.quaternion;
+      			positions[3*i + 0] = p.x;
+      			positions[3*i + 1] = p.y;
+      			positions[3*i + 2] = p.z;
+      			quaternions[4*i + 0] = q.x;
+      			quaternions[4*i + 1] = q.y;
+      			quaternions[4*i + 2] = q.z;
+      			quaternions[4*i + 3] = q.w;
+      		}
+
+      		//send buffer data to the main thread
+      		self.postMessage({
+      			positions:positions,
+      			quaternions:quaternions
+      		}, [positions.buffer,
+      			quaternions.buffer]);
+          break;
+
+        case 'add':
+          if(world){
+            console.log("add body to world");
+            var shape = new CANNON.Box(new CANNON.Vec3(0.25, 0.5, 0.25));
+            var body = new CANNON.RigidBody(5, shape);
+            body.position.set(0, 0, 0);
+            body.quaternion.set((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5), 1);
+            body.preStep = function(){
+              for(var j = 0; j < world.bodies.length; j++){
+                var otherBody = world.bodies[j];
+                var bodyToBody = new CANNON.Vec3();
+                bodyToBody = this.position;
+                var direction = new CANNON.Vec3();
+                otherBody.position.vsub(bodyToBody, direction);
+                var bodyDistance = direction.norm();
+                direction.normalize;
+                direction.mult(-1/(5*bodyDistance), direction);
+                this.force = this.force.vadd(direction);
+              }
+              var bodyToCenter = new CANNON.Vec3();
+              this.position.negate(bodyToCenter);
+              bodyToCenter = bodyToCenter.mult(3);
+              this.force = this.force.vadd(bodyToCenter);
+            }
+            world.add(body);
+            console.log("world bodies: " + world.bodies.length);
+          }
+          break;
+        default:
+        self.postMessage('unknown worker command: ' + e.data.cmd);
+      }
+  	};
+
+  </script>
+
+  <script>
+
+  var Program = function(data){
+    console.log(data.textures.length);
+    var clock = new THREE.Clock();
+  	var dt = 1/60, N=data.textures.length;
+    var paused = false;
+    N = N-1;
+    console.log(N);
+  	var positions = new Float32Array(N*3);
+  	var quaternions = new Float32Array(N*4);
+  	//blob for inline worker
+  	var blob = new Blob([document.querySelector('#worker1').textContent]);
+  	//create worker
+  	var worker = new Worker(window.URL.createObjectURL(blob));
+  	worker.postMessage = worker.webkitPostMessage || worker.postMessage;
+
+  	var sendTime; //the time when we sent the last message
+
+  	var that = { };
+
+
+  	worker.onmessage = function(e){
+  		positions = e.data.positions;
+  		quaternions = e.data.quaternions;
+
+  		for(var i = 0; i!==meshes.length; i++){
+  			meshes[i].position.set(positions[3*i+0],
+  									positions[3*i+1],
+  									positions[3*i+2]);
+  			meshes[i].quaternion.set(quaternions[4*i+0],
+  									quaternions[4*i+1],
+  									quaternions[4*i+2],
+  									quaternions[4*i+3]);
+  		}
+  		//if the worker is faster than the timestep, delay the next timestep
+  		var delay = dt*1000 - (Date.now() - sendTime);
+  		if(delay < 0){
+  			delay = 0;
+  		}
+  		setTimeout(that.sendDataToWorker, delay);
+  	}
+
+    that.addBodyToWorker = function(l){
+      positions = new Float32Array(l*3);
+      quaternions = new Float32Array(l*4);
+      sendTime = Date.now();
+      worker.postMessage({cmd: 'add'});
+
+    }
+
+  	that.sendDataToWorker = function(){
+  		sendTime = Date.now();
+  		worker.postMessage({
+        cmd: 'run',
+  			N : N,
+  			dt : dt,
+  			cannonUrl : document.location.href.replace(/\/[^/]*$/,"/") + "/js/cannon.js",
+  			positions : positions,
+  			quaternions : quaternions,
+        paused: paused
+  		}, [positions.buffer, quaternions.buffer]);
+  	};
+
+  	var container, camera, scene, renderer;
+  	var meshes = [];
+    var trashgeo;
+
+  	that.init = function(data){
+  		if (!Detector.webgl) Detector.addGetWebGLMessage();
+      console.log("lets init");
+      console.log("data id: " + data.id);
+  		container = document.createElement('div');
+  		document.body.appendChild(container);
+  		//scene
+  		scene = new THREE.Scene();
+  		scene.fog = new THREE.Fog(0x000000, 500, 10000);
+
+  		camera = new THREE.PerspectiveCamera( 30, window.innerWidth/window.innerHeight, 0.5, 10000 );
+  		camera.position.z = 50;
+      camera.lookAt(new THREE.Vector3( 0, 0, 0 ));
+
+        localViewer = new Viewer(camera.position.x,
+                                 camera.position.y,
+                                 camera.position.z);
+        localViewer.id = data.id;
+        console.log("data id: " + data.id);
+        socket.emit("new viewer", {
+          x: localViewer.getX(),
+          y: localViewer.getY(),
+          z: localViewer.getZ(),
+          id: localViewer.id
+        });
+
+  		scene.add(camera);
+
+
+
+
+
+  		//light
+  		var light, materials;
+  		scene.add(new THREE.AmbientLight(0x666666));
+  		light = new THREE.DirectionalLight(0xffffff, 1.75);
+  		var d = 20;
+
+  		light.position.set(d,d,d);
+  		light.castShadow = true;
+  		light.shadowMapWidth = 1024;
+  		light.shadowMapHeight = 1024;
+  		light.shadowCameraLeft = -d;
+  		light.shadowCameraRight = d;
+  		light.shadowCameraTop = d;
+  		light.shadowCameraBottom = -d;
+  		light.shadowCameraFar = 3*d;
+  		light.ShadowCameraNear = d;
+  		light.ShadowDarkness = 0.5;
+
+  		scene.add(light);
+
+
+  		//trashcans
+  		var loader = new THREE.JSONLoader();
+
+  		loader.load('/js/trashcan03loReswUV.js', function(geometry){
+
+        trashgeo = geometry;
+ 
+ 			for(var i=0; i!==N; i++){
+        if(data.textures[i].indexOf(".jpg") !== -1){
+          var imgTexture = THREE.ImageUtils.loadTexture("/textures/"+data.textures[i]);
+          if(imgTexture !== undefined){
+            var material = new THREE.MeshPhongMaterial( {
+              color: 0xaaaaaa,
+              map: imgTexture
+            } );
+
+     				var trashMesh = new THREE.Mesh(geometry, material);
+
+            console.log("make trashcan");
+
+     				trashMesh.scale.set(2, 2, 2);
+     				meshes.push(trashMesh);
+     				scene.add(trashMesh);
+          }
+        }
+ 			}
+
+ 		 });
+
+		renderer = new THREE.WebGLRenderer({antialias: true});
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.setClearColor(scene.fog.color);
+
+		container.appendChild(renderer.domElement);
+
+		renderer.gammaInput = true;
+		renderer.gammaOutput = true;
+		renderer.shadowMapEnabled = true;
+
+           //controls
+    controls = new THREE.FlyControls( camera, renderer.domElement, that );
+    controls.movementSpeed = 10;
+    controls.domElement = container;
+    controls.rollSpeed = Math.PI / 24;
+    controls.autoForward = false;
+    controls.dragToLook = true;
+
+
+
+		window.addEventListener('resize', this.onWindowResize, false);
+    window.addEventListener( 'keydown', this.keydown, false );
+
+  	};
+
+    that.onWindowResize = function() {
+	    camera.aspect = window.innerWidth / window.innerHeight;
+	    camera.updateProjectionMatrix();
+	    controls.handleResize();
+	    renderer.setSize( window.innerWidth, window.innerHeight );
+	};
+
+  that.keydown = function(event){
+    if(event.keyCode === 32 && paused){
+      paused = false;
+      console.log("unpause");
+    } else if(event.keyCode === 32 && !paused){
+      paused = true;
+    }
+
+    if(event.keyCode === 120){
+      that.addTrashcan();
+    }
+  }
+
+  that.addTrashcan = function(){
+     console.log("add trashcan");
+      var newMat = new THREE.MeshPhongMaterial( {color: 0xff0000} );
+      var newTrash = new THREE.Mesh(trashgeo, newMat);
+      newTrash.scale.set(2,2,2);
+      meshes.push(newTrash);
+      scene.add(newTrash);
+      that.addBodyToWorker(meshes.length);
+      console.log("meshes length: " + meshes.length);
+
+  }
+
+  that.addViewer = function(name){
+    var viewerGeo = new THREE.SphereGeometry( 2, 8, 8);
+    var viewerMat = new THREE.MeshPhongMaterial( {color: 0xaaaaaa} );
+    var viewerMesh = new THREE.Mesh(viewerGeo, viewerMat);
+    viewerMesh.name = name;
+    scene.add(viewerMesh);
+  }
+
+  that.updateLocalViewer = function(){
+    if(localViewer.update(camera)){
+      console.log("emit move viewer")
+      socket.emit("move viewer", {
+        x:localViewer.getX(),
+        y:localViewer.getY(),
+        z:localViewer.getZ(),
+        id:localViewer.id
+      });
+    }
+  }
+
+  that.removeViewer = function(name){
+    var remoteV = scene.getObjectByName(name);
+    if(!remoteV){
+      console.log("could not find viewer to remove: " + name);
+    }
+    scene.remove(remoteV);
+  }
+
+	that.animate = function(){
+    var delta = clock.getDelta();
+    for(var i = 0; i < remoteViewers.length; i++){
+      var remoteV = scene.getObjectByName(remoteViewers[i].id);
+      remoteV.position.x = remoteViewers[i].getX();
+      remoteV.position.y = remoteViewers[i].getY();
+      remoteV.position.z = remoteViewers[i].getZ();
+    }
+		requestAnimationFrame(that.animate);
+		controls.update(delta);
+    that.updateLocalViewer();
+		that.render();
+	};
+
+	that.render = function(){
+		renderer.render(scene, camera);
+	};
+
+	return that;
+
+};
+var localViewer;
+var remoteViewers = [];
+var program;
+var socket = io.connect('http://localhost:3000');
+socket.on('news', function (data){
+  console.log(data);
+  program = new Program(data);
+  program.init(data);
+  console.log("past init");
+
+  program.animate();
+  program.sendDataToWorker();
+});
+
+socket.on("connect", onSocketConnected);
+socket.on("disconnect", onSocketDisconnect);
+socket.on("new viewer", onNewViewer);
+socket.on("move viewer", onMoveViewer);
+socket.on("remove viewer", onRemoveViewer);
+
+function onSocketConnected(){
+  console.log("connected to socket server");
+
+};
+
+function onSocketDisconnect(){
+  console.log("disconnected from socket server");
+};
+
+function onNewViewer(data){
+  console.log("new viewer connected to server");
+  var newViewer = new Viewer(data.x, data.y, data.z);
+  newViewer.id = data.id;
+  remoteViewers.push(newViewer);
+  program.addViewer(newViewer.id);
+  program.addTrashcan();
+};
+
+function onMoveViewer(data){
+ console.log("move viewer: " + data.id);
+ var moveViewer = viewerById(data.id);
+ if(!moveViewer){
+  console.log("viewer not found: " + data.id);
+  return;
+ }
+ moveViewer.setX(data.x);
+ moveViewer.setY(data.y);
+ moveViewer.setZ(data.z);
+};
+
+function onRemoveViewer(data){
+  console.log("remove viewer");
+  var removeViewer = viewerById(data.id);
+
+  if (!removeViewer) {
+      console.log("Viewer not found: "+data.id);
+      return;
+    };
+  remoteViewers.splice(remoteViewers.indexOf(removeViewer), 1);
+  program.removeViewer(data.id);
+};
+
+
+function viewerById(id){
+  var i;
+  for (i = 0; i < remoteViewers.length; i++) {
+        if (remoteViewers[i].id == id)
+            return remoteViewers[i];
+    };
+
+    return false;
+};
+
+var appversion = navigator.appVersion;
+socket.emit('send', {
+  version: appversion
+});
+
+  </script>
+  </body>
+</html>
