@@ -326,9 +326,11 @@
     }
   }
 
-  that.addTrashcan = function(){
-     console.log("add trashcan");
-      var newMat = new THREE.MeshPhongMaterial( {color: 0xff0000} );
+  that.addTrashcan = function(textureurl){
+      console.log("add trashcan");
+      var imgTexture = THREE.ImageUtils.loadTexture("/textures/"+textureurl);
+      var newMat = new THREE.MeshPhongMaterial( {color: 0xaaaaaa,
+                                                  map: imgTexture} );
       var newTrash = new THREE.Mesh(trashgeo, newMat);
       newTrash.scale.set(2,2,2);
       meshes.push(newTrash);
@@ -420,9 +422,10 @@ function onNewViewer(data){
   console.log("new viewer connected to server");
   var newViewer = new Viewer(data.x, data.y, data.z);
   newViewer.id = data.id;
+
   remoteViewers.push(newViewer);
   program.addViewer(newViewer.id);
-  program.addTrashcan();
+  program.addTrashcan(data.texture);
 };
 
 function onMoveViewer(data){

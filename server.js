@@ -83,23 +83,29 @@ function onSocketDisconnect(){
 function onNewViewer(data){
 	var newViewer = new Viewer(data.x, data.y, data.z);
 	newViewer.id = this.id;
-	this.broadcast.emit("new viewer", {
-		id: newViewer.id, 
-		x: newViewer.getX(), 
-		y: newViewer.getY(), 
-		z:newViewer.getZ()
-	});
-	var i, existingViewer;
-	for(i = 0; i<viewers.length; i++){
-		existingViewer = viewers[i];
-		this.emit("new viewer", {
-			id: existingViewer.id,
-			x: existingViewer.getX(),
-			y: existingViewer.getY(),
-			z: existingViewer.getZ()
+	var currentsocket = this;
+
+	fs.readdir("./views/textures", function(err, files){
+		var textureurl = files[files.length - 1];
+		currentsocket.broadcast.emit("new viewer", {
+			id: newViewer.id, 
+			x: newViewer.getX(), 
+			y: newViewer.getY(), 
+			z:newViewer.getZ(),
+			texture: textureurl
 		});
-	};
-	viewers.push(newViewer);
+		var i, existingViewer;
+		for(i = 0; i<viewers.length; i++){
+			existingViewer = viewers[i];
+			currentsocket.emit("new viewer", {
+				id: existingViewer.id,
+				x: existingViewer.getX(),
+				y: existingViewer.getY(),
+				z: existingViewer.getZ()
+			});
+		};
+		viewers.push(newViewer);
+	});
 };
 
 function onMoveViewer(data){
