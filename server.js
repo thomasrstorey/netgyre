@@ -8,7 +8,9 @@ var exec = require('child_process').exec;
 var Viewer = require("./Viewer").Viewer;
 
 var ipadd;
+var color;
 var viewers = [];
+var tempid;
 
 server.listen(3000);
 
@@ -17,34 +19,47 @@ app.use(express.compress());
 
 app.get("/", function(req, res, next){
 	console.log("loaded root");
-
 	ipadd = req.ip;
-	exec('phantomjs capture.js google.com', function(error, stdout, stderr){
-		console.log("rendered url");
-	});
-
+	color = ipadd.split(".");
 	next();
 });
 
 app.use(express.static(__dirname + '/views'));
 
 io.sockets.on('connection', function(socket){
-	var socketid = socket.id;
-	console.log("socket id: " + socket.id);
-	fs.readdir("./views/textures", function(err, files){
-		socket.emit('news', {
-			textures: files,
-			id: socketid
-		});
-	});
 
 	socket.on('send', function(data){
 			fs.readdir("./views/textures", function(err, files){
 				var num = pad(files.length, 4);
 				fs.writeFile("./views/textures/pages/trace_" + num + ".html",
-				"<body style='background-color:#FFF;'>" +
-				"<p style='font-size:15em;'>" + data.version + "</p>" +
-				"<p style='font-size:15em;'>" + ipadd + "</p>" +
+				"<body style='background-color:rgba("+ color[0] +
+												", " + color[1] + 
+												", " + color[2] + 
+												", " + color[3] + "); width: 1024px; height: 1024px; overflow: none; margin: none; padding: none;'>" +
+				"<div style='width: 1024px; height: 1024px;'>" +
+				"<p style='font-size:6em; color:#FFF;'>" + ipadd + ipadd + ipadd + "<br>" +
+				 ipadd + ipadd + ipadd + "<br>" +
+				 ipadd + ipadd + ipadd + "<br>" + 
+				 ipadd + ipadd + ipadd + "<br>" + 
+				 ipadd + ipadd + ipadd + "<br>" + 
+				 ipadd + ipadd + ipadd + "<br>" + 
+				 ipadd + ipadd + ipadd + "<br>" + 
+				 ipadd + ipadd + ipadd + "<br>" + 
+				 ipadd + ipadd + ipadd + "<br>" + 
+				 ipadd + ipadd + ipadd + "<br>" +"</p>" +
+				"</div>"+
+				"<div style='width: 1024px; height: 1024px; position: absolute; top: 0px; left: 0px;'>" +
+				"<p style='font-size:5em; color: #FFF;'>" + tempid + "<br>" +
+				 tempid + "<br>" +
+				 tempid + "<br>" + 
+				 tempid +  "<br>" + 
+				 tempid +  "<br>" + 
+				 tempid +  "<br>" + 
+				 tempid +  "<br>" + 
+				 tempid +  "<br>" + 
+				 tempid +  "<br>" + 
+				 tempid +  "<br>" +"</p>" +
+				"</div>"+
 				"</body>", 
 				function(err){
 				if(err){
@@ -53,6 +68,16 @@ io.sockets.on('connection', function(socket){
 					console.log("The file was saved!");
 						exec('phantomjs capture.js views/textures/pages/trace_' + num + '.html', function(error, stdout, stderr){
 						console.log("rendered url");
+						fs.readdir("./views/textures", function(err, files){
+							var socketid = socket.id;
+							tempid = socketid;
+							console.log("socket id: " + socket.id);
+
+							socket.emit('news', {
+								textures: files,
+								id: socketid
+							});
+						});
 					});
 				}
 			});
@@ -87,6 +112,7 @@ function onNewViewer(data){
 
 	fs.readdir("./views/textures", function(err, files){
 		var textureurl = files[files.length - 1];
+		console.log(textureurl);
 		currentsocket.broadcast.emit("new viewer", {
 			id: newViewer.id, 
 			x: newViewer.getX(), 
@@ -101,9 +127,11 @@ function onNewViewer(data){
 				id: existingViewer.id,
 				x: existingViewer.getX(),
 				y: existingViewer.getY(),
-				z: existingViewer.getZ()
+				z: existingViewer.getZ(),
+				texture: files[files.length - (i + 1)]
 			});
 		};
+
 		viewers.push(newViewer);
 	});
 };

@@ -3,7 +3,7 @@
   <head>
     <title>netgyre</title>
     <meta charset="utf-8">
-    <style>* {margin:0;padding:0;}</style>
+    <style>* {margin:0;padding:0;overflow:hidden;}</style>
   </head>
   <body>
   <script src="/js/three.min.js"></script>
@@ -28,9 +28,10 @@
       			world = new CANNON.World();
       			world.broadphase = new CANNON.NaiveBroadphase();
       			world.gravity.set(0, 0, 0);
-      			world.solver.tolerance = 0.1;
+      			world.solver.tolerance = 0.2;
             world.solver.iterations = 1;
             world.quatNormalizeFast = true;
+            world.quatNormalizeSkip = 1;
 
 
       			//bodies
@@ -44,31 +45,33 @@
       			}
             var N = e.data.N - 1;
             for(var i=0; i!==N; i++){
-              var body = preBodies[i];
-              body.preStep = function(){
+              if (preBodies.length > 0){
+                var body = preBodies[i];
+                body.preStep = function(){
 
-                for(var j = 0; j!==N; j++){
-                  if(j !== i){
-                    var otherBody = preBodies[j];
-                    var bodyToBody = new CANNON.Vec3();
-                    bodyToBody = this.position;
-                    var direction = new CANNON.Vec3();
-                    otherBody.position.vsub(bodyToBody, direction);
-                    var bodyDistance = direction.norm();
-                    direction.normalize;
-                    direction.mult(-1/(5*bodyDistance), direction);
-                    this.force = this.force.vadd(direction);
+                  for(var j = 0; j!==N; j++){
+                    if(j !== i){
+                      var otherBody = preBodies[j];
+                      var bodyToBody = new CANNON.Vec3();
+                      bodyToBody = this.position;
+                      var direction = new CANNON.Vec3();
+                      otherBody.position.vsub(bodyToBody, direction);
+                      var bodyDistance = direction.norm();
+                      direction.normalize;
+                      direction.mult(-1/(5*bodyDistance), direction);
+                      this.force = this.force.vadd(direction);
+                    }
                   }
+                  var bodyToCenter = new CANNON.Vec3();
+                  this.position.negate(bodyToCenter);
+                  bodyToCenter = bodyToCenter.mult(3);
+                  this.force = this.force.vadd(bodyToCenter);
                 }
-                var bodyToCenter = new CANNON.Vec3();
-                this.position.negate(bodyToCenter);
-                bodyToCenter = bodyToCenter.mult(3);
-                this.force = this.force.vadd(bodyToCenter);
+                world.add(body);
               }
-              world.add(body);
-            }
 
-      		}
+        		}
+          }
           if(!e.data.paused) world.step(e.data.dt);
 
       		//copy simulation data to data buffers
@@ -138,7 +141,6 @@
     var clock = new THREE.Clock();
   	var dt = 1/60, N=data.textures.length;
     var paused = false;
-    N = N-1;
     console.log(N);
   	var positions = new Float32Array(N*3);
   	var quaternions = new Float32Array(N*4);
@@ -207,7 +209,7 @@
   		document.body.appendChild(container);
   		//scene
   		scene = new THREE.Scene();
-  		scene.fog = new THREE.Fog(0x000000, 500, 10000);
+  		scene.fog = new THREE.Fog(0xffffff, 500, 10000);
 
   		camera = new THREE.PerspectiveCamera( 30, window.innerWidth/window.innerHeight, 0.5, 10000 );
   		camera.position.z = 50;
@@ -255,11 +257,11 @@
   		//trashcans
   		var loader = new THREE.JSONLoader();
 
-  		loader.load('/js/trashcan03loReswUV.js', function(geometry){
+  		loader.load('/js/trashcan03loRes.js', function(geometry){
 
         trashgeo = geometry;
  
- 			for(var i=0; i!==N; i++){
+ 			for(var i=0; i!==data.textures.length; i++){
         if(data.textures[i].indexOf(".jpg") !== -1){
           var imgTexture = THREE.ImageUtils.loadTexture("/textures/"+data.textures[i]);
           if(imgTexture !== undefined){
@@ -320,10 +322,6 @@
     } else if(event.keyCode === 32 && !paused){
       paused = true;
     }
-
-    if(event.keyCode === 120){
-      that.addTrashcan();
-    }
   }
 
   that.addTrashcan = function(textureurl){
@@ -341,8 +339,8 @@
   }
 
   that.addViewer = function(name){
-    var viewerGeo = new THREE.SphereGeometry( 2, 8, 8);
-    var viewerMat = new THREE.MeshPhongMaterial( {color: 0xaaaaaa} );
+    var viewerGeo = new THREE.SphereGeometry( 1, 8, 8);
+    var viewerMat = new THREE.MeshPhongMaterial( {color: 0x666666} );
     var viewerMesh = new THREE.Mesh(viewerGeo, viewerMat);
     viewerMesh.name = name;
     scene.add(viewerMesh);
@@ -389,10 +387,17 @@
 	return that;
 
 };
+
 var localViewer;
 var remoteViewers = [];
 var program;
 var socket = io.connect('http://localhost:3000');
+
+var appversion = navigator.appVersion;
+socket.emit('send', {
+  version: appversion
+});
+
 socket.on('news', function (data){
   console.log(data);
   program = new Program(data);
@@ -422,7 +427,7 @@ function onNewViewer(data){
   console.log("new viewer connected to server");
   var newViewer = new Viewer(data.x, data.y, data.z);
   newViewer.id = data.id;
-
+  console.log(data.texture);
   remoteViewers.push(newViewer);
   program.addViewer(newViewer.id);
   program.addTrashcan(data.texture);
@@ -463,10 +468,7 @@ function viewerById(id){
     return false;
 };
 
-var appversion = navigator.appVersion;
-socket.emit('send', {
-  version: appversion
-});
+
 
   </script>
   </body>

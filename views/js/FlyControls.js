@@ -11,8 +11,8 @@ THREE.FlyControls = function ( object, domElement, that ) {
 
 	// API
 
-	this.movementSpeed = 1.0;
-	this.rollSpeed = 0.005;
+	this.movementSpeed = 3.0;
+	this.rollSpeed = 1;
 
 	this.dragToLook = false;
 	this.autoForward = false;
@@ -152,8 +152,8 @@ THREE.FlyControls = function ( object, domElement, that ) {
 			var halfWidth  = container.size[ 0 ] / 2;
 			var halfHeight = container.size[ 1 ] / 2;
 
-			this.moveState.yawLeft   = - ( ( event.pageX - container.offset[ 0 ] ) - halfWidth  ) / halfWidth;
-			this.moveState.pitchDown =   ( ( event.pageY - container.offset[ 1 ] ) - halfHeight ) / halfHeight;
+			this.moveState.yawLeft   = - 3*( ( event.pageX - container.offset[ 0 ] ) - halfWidth  ) / halfWidth;
+			this.moveState.pitchDown =   3*( ( event.pageY - container.offset[ 1 ] ) - halfHeight ) / halfHeight;
 
 			this.updateRotationVector();
 
