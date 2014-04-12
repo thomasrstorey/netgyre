@@ -2,6 +2,7 @@ var Viewer = function(startX, startY, startZ){
 	var x = startX,
 		y = startY,
 		z = startZ,
+		ip,
 		id;
 
 	var getX = function(){
@@ -35,6 +36,7 @@ var Viewer = function(startX, startY, startZ){
 		setX: setX,
 		setY: setY,
 		setZ: setZ,
+		ip: ip,
 		id: id
 	}
 };

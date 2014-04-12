@@ -6,11 +6,15 @@
     <style>* {margin:0;padding:0;overflow:hidden;}</style>
   </head>
   <body>
+  <div id="webcam" style="position: absolute; top:9990px; left:9990px; width:320px; height:240px; z-index: 99;">
+  </div>
   <script src="/js/three.min.js"></script>
   <script src="/js/Detector.js"></script>
-  <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+  <!--<script src="http://art-tech.arts.ufl.edu:8124/socket.io/socket.io.js"></script>-->
+  <script src="http://localhost:8124/socket.io/socket.io.js"></script>
   <script src="/js/FlyControls.js"></script>
   <script src="/js/Viewer.js"></script>
+  <script src="/js/webcam.js"></script>
 
   <script id="worker1" type="javascript/worker">
   	var world;
@@ -311,7 +315,6 @@
     that.onWindowResize = function() {
 	    camera.aspect = window.innerWidth / window.innerHeight;
 	    camera.updateProjectionMatrix();
-	    controls.handleResize();
 	    renderer.setSize( window.innerWidth, window.innerHeight );
 	};
 
@@ -338,9 +341,11 @@
 
   }
 
-  that.addViewer = function(name){
+  that.addViewer = function(name, ip){
     var viewerGeo = new THREE.SphereGeometry( 1, 8, 8);
-    var viewerMat = new THREE.MeshPhongMaterial( {color: 0x666666} );
+    var viewerTexture = THREE.ImageUtils.loadTexture("/webcam/"+ip+".jpg");
+    var viewerMat = new THREE.MeshPhongMaterial( {color: 0xaaaaaa,
+                                                  map: viewerTexture} );
     var viewerMesh = new THREE.Mesh(viewerGeo, viewerMat);
     viewerMesh.name = name;
     scene.add(viewerMesh);
@@ -391,12 +396,26 @@
 var localViewer;
 var remoteViewers = [];
 var program;
-var socket = io.connect('http://localhost:3000');
+//var socket = io.connect('http://art-tech.arts.ufl.edu:8124');
+var socket = io.connect('http://localhost:8124');
 
 var appversion = navigator.appVersion;
 socket.emit('send', {
   version: appversion
 });
+
+  console.log("webcam start");
+
+   Webcam.set({
+        width: 320,
+        height: 240,
+        dest_width: 320,
+        dest_height: 240,
+        image_format: 'jpeg',
+        jpeg_quality: 90,
+        force_flash: false
+    });
+  Webcam.attach('#webcam');
 
 socket.on('news', function (data){
   console.log(data);
@@ -408,6 +427,18 @@ socket.on('news', function (data){
   program.sendDataToWorker();
 });
 
+Webcam.on('live', function (){
+
+  setTimeout(function(){
+    var dataURI = Webcam.snap();
+    Webcam.upload(dataURI, '/uploads', function(code, text){
+      console.log("Response code: " + code + "Response text: " + text);
+    });
+    Webcam.reset();
+  }, 3000);
+  
+});
+
 socket.on("connect", onSocketConnected);
 socket.on("disconnect", onSocketDisconnect);
 socket.on("new viewer", onNewViewer);
@@ -416,7 +447,6 @@ socket.on("remove viewer", onRemoveViewer);
 
 function onSocketConnected(){
   console.log("connected to socket server");
-
 };
 
 function onSocketDisconnect(){
@@ -427,9 +457,10 @@ function onNewViewer(data){
   console.log("new viewer connected to server");
   var newViewer = new Viewer(data.x, data.y, data.z);
   newViewer.id = data.id;
+  newViewer.ip = data.ip;
   console.log(data.texture);
   remoteViewers.push(newViewer);
-  program.addViewer(newViewer.id);
+  program.addViewer(newViewer.id, newViewer.ip);
   program.addTrashcan(data.texture);
 };
 
@@ -470,6 +501,11 @@ function viewerById(id){
 
 
 
+
+
+
+
   </script>
+
   </body>
 </html>

@@ -12,19 +12,39 @@ var color;
 var viewers = [];
 var tempid;
 
-server.listen(3000);
 
 
-app.use(express.compress());
 
-app.get("/", function(req, res, next){
+//server.listen(8124, "128.227.217.26");
+server.listen(8124);
+
+
+	app.use(express.compress());
+	app.use(express.bodyParser({uploadDir:'./uploads'}));
+	app.use(express.multipart());
+
+
+app.get('/', function(req, res, next){
 	console.log("loaded root");
-	ipadd = req.ip;
+    ipadd = req.ip;
 	color = ipadd.split(".");
 	next();
 });
 
 app.use(express.static(__dirname + '/views'));
+
+app.post('/uploads', function(req, res, next){
+	console.log(req.files);
+	var tmpPath = req.files.webcam.path;
+	var targetPath = './views/webcam/' + req.ip + ".jpg";
+	fs.rename(tmpPath, targetPath, function(err){
+		if(err) throw err;
+		fs.unlink(tmpPath, function(){
+			if(err) throw err;
+			res.send('File uploaded to: ' + targetPath + ' - ' + req.files.webcam.size + ' bytes');
+		});
+	});
+});
 
 io.sockets.on('connection', function(socket){
 
@@ -108,17 +128,19 @@ function onSocketDisconnect(){
 function onNewViewer(data){
 	var newViewer = new Viewer(data.x, data.y, data.z);
 	newViewer.id = this.id;
+	newViewer.ip = this.handshake.address.address
 	var currentsocket = this;
 
 	fs.readdir("./views/textures", function(err, files){
 		var textureurl = files[files.length - 1];
 		console.log(textureurl);
 		currentsocket.broadcast.emit("new viewer", {
-			id: newViewer.id, 
+			id: newViewer.id,
+			ip: newViewer.ip, 
 			x: newViewer.getX(), 
 			y: newViewer.getY(), 
 			z:newViewer.getZ(),
-			texture: textureurl
+			texture: textureurl,
 		});
 		var i, existingViewer;
 		for(i = 0; i<viewers.length; i++){
@@ -128,6 +150,7 @@ function onNewViewer(data){
 				x: existingViewer.getX(),
 				y: existingViewer.getY(),
 				z: existingViewer.getZ(),
+				ip: existingViewer.ip,
 				texture: files[files.length - (i + 1)]
 			});
 		};
