@@ -10,8 +10,8 @@
   </div>
   <script src="/js/three.min.js"></script>
   <script src="/js/Detector.js"></script>
-  <!--<script src="http://art-tech.arts.ufl.edu:8124/socket.io/socket.io.js"></script>-->
-  <script src="http://localhost:8124/socket.io/socket.io.js"></script>
+  <script src="http://art-tech.arts.ufl.edu:8124/socket.io/socket.io.js"></script>
+  <!--<script src="http://localhost:8124/socket.io/socket.io.js"></script>-->
   <script src="/js/FlyControls.js"></script>
   <script src="/js/Viewer.js"></script>
   <script src="/js/webcam.js"></script>
@@ -221,7 +221,11 @@
 
         localViewer = new Viewer(camera.position.x,
                                  camera.position.y,
-                                 camera.position.z);
+                                 camera.position.z,
+                                 camera.quaternion.x,
+                                 camera.quaternion.y,
+                                 camera.quaternion.z,
+                                 camera.quaternion.w);
         localViewer.id = data.id;
         console.log("data id: " + data.id);
         socket.emit("new viewer", {
@@ -344,6 +348,9 @@
   that.addViewer = function(name, ip){
     var viewerGeo = new THREE.SphereGeometry( 1, 8, 8);
     var viewerTexture = THREE.ImageUtils.loadTexture("/webcam/"+ip+".jpg");
+    viewerTexture.offset = new THREE.Vector2( -0.25, 0.0 );
+    viewerTexture.wrapS = THREE.RepeatWrapping;
+    viewerTexture.wrapT = THREE.RepeatWrapping;
     var viewerMat = new THREE.MeshPhongMaterial( {color: 0xaaaaaa,
                                                   map: viewerTexture} );
     var viewerMesh = new THREE.Mesh(viewerGeo, viewerMat);
@@ -353,11 +360,19 @@
 
   that.updateLocalViewer = function(){
     if(localViewer.update(camera)){
+      var _qx = localViewer.getQX();
+      var _qy = localViewer.getQY();
+      var _qz = localViewer.getQZ();
+      var _qw = localViewer.getQW();
       console.log("emit move viewer")
       socket.emit("move viewer", {
         x:localViewer.getX(),
         y:localViewer.getY(),
         z:localViewer.getZ(),
+        qx:_qx,
+        qy:_qy,
+        qz:_qz,
+        qw:_qw,
         id:localViewer.id
       });
     }
@@ -378,6 +393,10 @@
       remoteV.position.x = remoteViewers[i].getX();
       remoteV.position.y = remoteViewers[i].getY();
       remoteV.position.z = remoteViewers[i].getZ();
+      remoteV.quaternion.x = remoteViewers[i].getQX();
+      remoteV.quaternion.y = remoteViewers[i].getQY();
+      remoteV.quaternion.z = remoteViewers[i].getQZ();
+      remoteV.quaternion.w = remoteViewers[i].getQW();
     }
 		requestAnimationFrame(that.animate);
 		controls.update(delta);
@@ -396,8 +415,8 @@
 var localViewer;
 var remoteViewers = [];
 var program;
-//var socket = io.connect('http://art-tech.arts.ufl.edu:8124');
-var socket = io.connect('http://localhost:8124');
+var socket = io.connect('http://art-tech.arts.ufl.edu:8124');
+//var socket = io.connect('http://localhost:8124');
 
 var appversion = navigator.appVersion;
 socket.emit('send', {
@@ -455,7 +474,7 @@ function onSocketDisconnect(){
 
 function onNewViewer(data){
   console.log("new viewer connected to server");
-  var newViewer = new Viewer(data.x, data.y, data.z);
+  var newViewer = new Viewer(data.x, data.y, data.z, data.qx, data.qy, data.qz, data.qw);
   newViewer.id = data.id;
   newViewer.ip = data.ip;
   console.log(data.texture);
@@ -474,6 +493,10 @@ function onMoveViewer(data){
  moveViewer.setX(data.x);
  moveViewer.setY(data.y);
  moveViewer.setZ(data.z);
+ moveViewer.setQX(data.qx);
+ moveViewer.setQY(data.qy);
+ moveViewer.setQZ(data.qz);
+ moveViewer.setQW(data.qw);
 };
 
 function onRemoveViewer(data){

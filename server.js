@@ -15,8 +15,8 @@ var tempid;
 
 
 
-//server.listen(8124, "128.227.217.26");
-server.listen(8124);
+server.listen(8124, "128.227.217.26");
+//server.listen(8124);
 
 
 	app.use(express.compress());
@@ -140,6 +140,10 @@ function onNewViewer(data){
 			x: newViewer.getX(), 
 			y: newViewer.getY(), 
 			z:newViewer.getZ(),
+			qx: newViewer.getQX(), 
+			qy: newViewer.getQY(), 
+			qz:newViewer.getQZ(),
+			qw:newViewer.getQW(),
 			texture: textureurl,
 		});
 		var i, existingViewer;
@@ -150,6 +154,10 @@ function onNewViewer(data){
 				x: existingViewer.getX(),
 				y: existingViewer.getY(),
 				z: existingViewer.getZ(),
+				qx: existingViewer.getQX(),
+				qy: existingViewer.getQY(),
+				qz: existingViewer.getQZ(),
+				qw: existingViewer.getQW(),
 				ip: existingViewer.ip,
 				texture: files[files.length - (i + 1)]
 			});
@@ -169,12 +177,20 @@ function onMoveViewer(data){
 	moveViewer.setX(data.x);
 	moveViewer.setY(data.y);
 	moveViewer.setZ(data.z);
+	moveViewer.setQX(data.qx);
+	moveViewer.setQY(data.qy);
+	moveViewer.setQZ(data.qz);
+	moveViewer.setQW(data.qw);
 	this.broadcast.emit("move viewer", {
 		id: moveViewer.id,
 		x: moveViewer.getX(),
 		y: moveViewer.getY(),
-		z: moveViewer.getZ()
-	})
+		z: moveViewer.getZ(),
+		qx: moveViewer.getQX(),
+		qy: moveViewer.getQY(),
+		qz: moveViewer.getQZ(),
+		qw: moveViewer.getQW()
+	});
 
 };
 
