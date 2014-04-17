@@ -3,11 +3,33 @@
   <head>
     <title>netgyre</title>
     <meta charset="utf-8">
-    <style>* {margin:0;padding:0;overflow:hidden;}</style>
+    <style>* {
+      color: #000;
+      font-family:Monospace;
+      font-size:13px;
+      text-align:center;
+      margin:0;
+      padding:0;
+      overflow:hidden;
+      }
+
+      #info {
+        position: absolute;
+        top: 0px; width: 100%;
+        padding: 5px;
+      }
+
+      </style>
   </head>
   <body>
+
   <div id="webcam" style="position: absolute; top:9990px; left:9990px; width:320px; height:240px; z-index: 99;">
   </div>
+
+  <div id="info">
+  move: w, a, s, d - look: click + drag.
+  </div>
+
   <script src="/js/three.min.js"></script>
   <script src="/js/Detector.js"></script>
   <script src="http://art-tech.arts.ufl.edu:8124/socket.io/socket.io.js"></script>
