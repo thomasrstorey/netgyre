@@ -3,14 +3,42 @@
   <head>
     <title>netgyre</title>
     <meta charset="utf-8">
-    <style>* {margin:0;padding:0;overflow:hidden;}</style>
+    <style>* {
+      color: #000;
+      font-family:Monospace;
+      font-size:13px;
+      text-align:center;
+      margin:0;
+      padding:0;
+      overflow:hidden;
+      }
+
+      #info {
+        position: absolute;
+        top: 0px; width: 100%;
+        padding: 5px;
+      }
+
+      </style>
   </head>
   <body>
+
+  <div id="webcam" style="position: absolute; top:9990px; left:9990px; width:320px; height:240px; z-index: 99;">
+  </div>
+
+  <div id="info">
+  move: w, a, s, d - look: click + drag.
+  <input type="checkbox" id="mode" onclick="program.installation();">Installation Mode<br>
+  </div>
+
   <script src="/js/three.min.js"></script>
   <script src="/js/Detector.js"></script>
-  <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+  <!--<script src="http://128.227.217.26:8124/socket.io/socket.io.js"></script>-->
+  <script src="http://localhost:8124/socket.io/socket.io.js"></script>
+  <script src="/js/THREEx.FullScreen.js"></script>
   <script src="/js/FlyControls.js"></script>
   <script src="/js/Viewer.js"></script>
+  <script src="/js/webcam.js"></script>
 
   <script id="worker1" type="javascript/worker">
   	var world;
@@ -135,7 +163,7 @@
   </script>
 
   <script>
-
+  
   var Program = function(data){
     console.log(data.textures.length);
     var clock = new THREE.Clock();
@@ -152,6 +180,8 @@
 
   	var sendTime; //the time when we sent the last message
 
+    var installationMode = document.getElementById("mode");
+    var interval;
   	var that = { };
 
 
@@ -217,7 +247,11 @@
 
         localViewer = new Viewer(camera.position.x,
                                  camera.position.y,
-                                 camera.position.z);
+                                 camera.position.z,
+                                 camera.quaternion.x,
+                                 camera.quaternion.y,
+                                 camera.quaternion.z,
+                                 camera.quaternion.w);
         localViewer.id = data.id;
         console.log("data id: " + data.id);
         socket.emit("new viewer", {
@@ -311,7 +345,6 @@
     that.onWindowResize = function() {
 	    camera.aspect = window.innerWidth / window.innerHeight;
 	    camera.updateProjectionMatrix();
-	    controls.handleResize();
 	    renderer.setSize( window.innerWidth, window.innerHeight );
 	};
 
@@ -338,9 +371,14 @@
 
   }
 
-  that.addViewer = function(name){
+  that.addViewer = function(name, ip){
     var viewerGeo = new THREE.SphereGeometry( 1, 8, 8);
-    var viewerMat = new THREE.MeshPhongMaterial( {color: 0x666666} );
+    var viewerTexture = THREE.ImageUtils.loadTexture("/webcam/"+ip+".jpg");
+    viewerTexture.offset = new THREE.Vector2( -0.25, 0.0 );
+    viewerTexture.wrapS = THREE.RepeatWrapping;
+    viewerTexture.wrapT = THREE.RepeatWrapping;
+    var viewerMat = new THREE.MeshPhongMaterial( {color: 0xaaaaaa,
+                                                  map: viewerTexture} );
     var viewerMesh = new THREE.Mesh(viewerGeo, viewerMat);
     viewerMesh.name = name;
     scene.add(viewerMesh);
@@ -348,11 +386,19 @@
 
   that.updateLocalViewer = function(){
     if(localViewer.update(camera)){
+      var _qx = localViewer.getQX();
+      var _qy = localViewer.getQY();
+      var _qz = localViewer.getQZ();
+      var _qw = localViewer.getQW();
       console.log("emit move viewer")
       socket.emit("move viewer", {
         x:localViewer.getX(),
         y:localViewer.getY(),
         z:localViewer.getZ(),
+        qx:_qx,
+        qy:_qy,
+        qz:_qz,
+        qw:_qw,
         id:localViewer.id
       });
     }
@@ -366,6 +412,21 @@
     scene.remove(remoteV);
   }
 
+  that.randCameraPosition = function(){
+    camera.position.x = (Math.random()*250) - 125;
+    camera.position.y = (Math.random()*250) - 125;
+    camera.position.z = (Math.random()*250) - 125;
+    camera.lookAt(new THREE.Vector3( 0, 0, 0 ));
+  }
+
+  that.installation = function(){
+    if(installationMode.checked){
+      interval = window.setInterval(that.randCameraPosition, 30000);
+    } else {
+      window.clearInterval(interval);
+    }
+  }
+
 	that.animate = function(){
     var delta = clock.getDelta();
     for(var i = 0; i < remoteViewers.length; i++){
@@ -373,6 +434,10 @@
       remoteV.position.x = remoteViewers[i].getX();
       remoteV.position.y = remoteViewers[i].getY();
       remoteV.position.z = remoteViewers[i].getZ();
+      remoteV.quaternion.x = remoteViewers[i].getQX();
+      remoteV.quaternion.y = remoteViewers[i].getQY();
+      remoteV.quaternion.z = remoteViewers[i].getQZ();
+      remoteV.quaternion.w = remoteViewers[i].getQW();
     }
 		requestAnimationFrame(that.animate);
 		controls.update(delta);
@@ -391,12 +456,26 @@
 var localViewer;
 var remoteViewers = [];
 var program;
-var socket = io.connect('http://localhost:3000');
+//var socket = io.connect('http://128.227.217.26:8124');
+var socket = io.connect('http://localhost:8124');
 
 var appversion = navigator.appVersion;
 socket.emit('send', {
   version: appversion
 });
+
+  console.log("webcam start");
+
+   Webcam.set({
+        width: 320,
+        height: 240,
+        dest_width: 320,
+        dest_height: 240,
+        image_format: 'jpeg',
+        jpeg_quality: 90,
+        force_flash: false
+    });
+  Webcam.attach('#webcam');
 
 socket.on('news', function (data){
   console.log(data);
@@ -408,15 +487,31 @@ socket.on('news', function (data){
   program.sendDataToWorker();
 });
 
+Webcam.on('live', function (){
+
+  setTimeout(function(){
+    var dataURI = Webcam.snap();
+    Webcam.upload(dataURI, '/uploads', function(code, text){
+      console.log("Response code: " + code + "Response text: " + text);
+    });
+    Webcam.reset();
+  }, 3000);
+  
+});
+
 socket.on("connect", onSocketConnected);
 socket.on("disconnect", onSocketDisconnect);
 socket.on("new viewer", onNewViewer);
 socket.on("move viewer", onMoveViewer);
 socket.on("remove viewer", onRemoveViewer);
+socket.on("test", onTest);
+
+function onTest(data){
+  console.log(data.files);
+};
 
 function onSocketConnected(){
   console.log("connected to socket server");
-
 };
 
 function onSocketDisconnect(){
@@ -425,11 +520,12 @@ function onSocketDisconnect(){
 
 function onNewViewer(data){
   console.log("new viewer connected to server");
-  var newViewer = new Viewer(data.x, data.y, data.z);
+  var newViewer = new Viewer(data.x, data.y, data.z, data.qx, data.qy, data.qz, data.qw);
   newViewer.id = data.id;
+  newViewer.ip = data.ip;
   console.log(data.texture);
   remoteViewers.push(newViewer);
-  program.addViewer(newViewer.id);
+  program.addViewer(newViewer.id, newViewer.ip);
   program.addTrashcan(data.texture);
 };
 
@@ -443,6 +539,10 @@ function onMoveViewer(data){
  moveViewer.setX(data.x);
  moveViewer.setY(data.y);
  moveViewer.setZ(data.z);
+ moveViewer.setQX(data.qx);
+ moveViewer.setQY(data.qy);
+ moveViewer.setQZ(data.qz);
+ moveViewer.setQW(data.qw);
 };
 
 function onRemoveViewer(data){
@@ -470,6 +570,11 @@ function viewerById(id){
 
 
 
+
+
+
+
   </script>
+
   </body>
 </html>

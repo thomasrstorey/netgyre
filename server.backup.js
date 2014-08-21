@@ -15,8 +15,8 @@ var tempid;
 
 
 
-//server.listen(8124, "128.227.217.26");
-server.listen(8124);
+server.listen(8124, "128.227.217.26");
+//server.listen(8124);
 
 
 	app.use(express.compress());

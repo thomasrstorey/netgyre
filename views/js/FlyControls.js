@@ -71,11 +71,6 @@ THREE.FlyControls = function ( object, domElement, that ) {
 			case 81: /*Q*/ this.moveState.rollLeft = 1; break;
 			case 69: /*E*/ this.moveState.rollRight = 1; break;
 
-			case 88: /*x*/ 
-			console.log("pressed x");
-			that.addTrashcan(); 
-			break;
-
 		}
 
 		this.updateMovementVector();
@@ -107,6 +102,19 @@ THREE.FlyControls = function ( object, domElement, that ) {
 			case 81: /*Q*/ this.moveState.rollLeft = 0; break;
 			case 69: /*E*/ this.moveState.rollRight = 0; break;
 
+			case 80: /*p*/ 
+			console.log("present");
+				this.domElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+				this.domElement.mozRequestFullScreen();
+				this.domElement.msRequestFullscreen();
+				this.domElement.requestFullscreen(); // standard
+			break;
+			case 27:
+				console.log("escape");
+				document.webkitExitFullscreen();
+				document.mozCancelFullscreen();
+				document.msExitFullscreen();
+				document.exitFullscreen();
 		}
 
 		this.updateMovementVector();
